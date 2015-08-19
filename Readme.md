@@ -3,8 +3,10 @@ A simple Kohana [Elasticsearch](http://www.elasticsearch.org/) module.
 
 ## Usage
 
-    $elasticsearch = Elasticsearch::instance('custom_index');
-    $elasticsearch->add('my_type', 1, array('value' => 'My value'));
+```php
+$elasticsearch = Elasticsearch::instance('custom_index');
+$elasticsearch->add('my_type', 1, array('value' => 'My value'));
+```
 
 ## Installation
 
