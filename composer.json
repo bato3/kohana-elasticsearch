@@ -1,5 +1,5 @@
 {
-	"name": "Mariyo/kohana-elasticsearch",
+	"name": "mariyo/kohana-elasticsearch",
 	"description": "Kohana module for Elasticsearch",
 	"keywords": ["email", "helper", "module", "library", "elasticsearch", "kohana"],
 	"homepage": "http://github.com/Mariyo/kohana-elasticsearch",
