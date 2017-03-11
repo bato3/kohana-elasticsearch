@@ -8,100 +8,103 @@ defined('SYSPATH') or die('No direct script access.');
 
 class Kohana_Elasticsearch {
 
-	/** Elasticsearch instance.
-	 *
-	 * @var Elasticsearch 
-	 */
-	protected static $_instance;
+    /** Elasticsearch instance.
+     *
+     * @var Array<Elasticsearch> 
+     */
+    protected static $_instances = Array();
+    
+    /**
+     * @var GuzzleHttp\Client
+     */
+    protected $client;
+    
+    /**
+     * @var Array
+     */
+    protected $config;
 
-	/**
-	 * @var string 
-	 */
-	protected $_host;
+    /**
+      * Expected JSON in response
+      */
+    const ERROR_EXPECTED_JSON = 1;
+    
+    /**
+      * CURL communication error
+      */
+    const ERROR_CURL_TRANSPORT = 2;
+    
+    /**
+      * Wrong HTTP response (!= 200)
+      */
+    const ERROR_HTTP_RESPONSE = 3;
+    
+    
+    /**
+     * Singleton pattern.
+     *
+     * @return Elasticsearch
+     */
+    public static function instance($instance = 'default') {
+        if (!isset(self::$_instances[$instance])) {
+            // Create a new session instance
+            self::$_instances[$instance] = new self($instance);
+        }
 
-	/**
-	 * @var string 
-	 */
-	protected $_index;
+        return self::$_instances[$instance];
+    }
 
-	/**
-	 * @var string 
-	 */
-	protected $_port;
+    protected function __construct($instance) {
+        
+        // Load the configuration for this type
+        $this->config = Kohana::$config->load('elasticsearch.'.$instance);
+        $this->client = new GuzzleHttp\Client($this->config['client']);
+    }
 
-	/**
-	 * Singleton pattern.
-	 *
-	 * @return Elasticsearch
-	 */
-	public static function instance($index = NULL) {
-		if (!isset(Elasticsearch::$_instance)) {
-			// Load the configuration for this type
-			$config = Kohana::$config->load('elasticsearch');
+    public function request($path = NULL, $method = 'GET', $content = array()) {
+        return $this->client->$method( $path, [ 'json' => $content ])->json();
+    }
 
-			// Create a new session instance
-			self::$_instance = new self($config->get('host'), $config->get('port'), isset($index) ? $index : $config->get('index'));
-		}
+    public function count($type, $data = FALSE) {
+        return $this->request($type . '/_count', 'GET', ($data) ? $data : '{ matchAll:{} }');
+    }
 
-		return self::$_instance;
-	}
+    public function stats() {
+        return $this->request('_stats');
+    }
 
-	protected function __construct($host, $port, $index) {
-		$this->_index = $index;
-		$this->_host = $host;
-		$this->_port = $port;
-	}
+    public function add($type, $id, $data) {
+        return $this->request($type . '/' . $id, 'PUT', $data);
+    }
 
-	protected function request($path, $method = 'GET', $content = array()) {
-		$ch = curl_init();
-		curl_setopt($ch, CURLOPT_URL, $this->_host . '/' . $this->_index . '/' . $path);
-		curl_setopt($ch, CURLOPT_PORT, $this->_port);
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-		curl_setopt($ch, CURLOPT_CUSTOMREQUEST, strtoupper($method));
+    public function delete($type, $id) {
+        $this->request($type . '/' . $id, 'DELETE');
+    }
 
-		if (!empty($content)) {
-			$data = $content;
-			if (is_array($content))
-				$data = json_encode($content);
+    public function delete_all($type) {
+        $this->request($type, 'DELETE');
+    }
 
-			curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
-		}
+    public function update($type, $id, $data) {
+        $this->request($type . '/' . $id . '/_update', 'POST', $data);
+    }
 
-		$result = curl_exec($ch);
-		curl_close($ch);
-		return json_decode($result);
-	}
+    public function mapping($type, $data) {
+        return $this->request($type . '/_mapping', 'PUT', $data);
+    }
 
-	public function count($type, $data = FALSE) {
-		return $this->request($type . '/_count', 'GET', ($data) ? $data : '{ matchAll:{} }');
-	}
+    public function search($type, $query = array()) {
+        return $this->request($type . '/_search', 'POST', $query);
+    }
 
-	public function status() {
-		return $this->request('_status');
-	}
-
-	public function add($type, $id, $data) {
-		return $this->request($type . '/' . $id, 'PUT', $data);
-	}
-
-	public function delete($type, $id) {
-		$this->request($type . '/' . $id, 'DELETE');
-	}
-
-	public function delete_all($type) {
-		$this->request($type, 'DELETE');
-	}
-
-	public function update($type, $id, $data) {
-		$this->request($type . '/' . $id . '/_update', 'POST', $data);
-	}
-
-	public function mapping($type, $data) {
-		return $this->request($type . '/_mapping', 'PUT', $data);
-	}
-
-	public function search($type, $query = array()) {
-		return $this->request($type . '/_search', 'POST', $query);
-	}
-
+    public function status() {
+        $dd = explode("\n",trim($this->client->get('/_cat/health?v')->getBody()));
+        $k = preg_split('/\s+/',trim(array_shift($dd)));
+        $st = Array();
+        
+        foreach($dd AS $one){
+            $st[] = array_combine($k,preg_split('/\s+/',trim($one)));
+        }
+        return $st;
+    }
 }
